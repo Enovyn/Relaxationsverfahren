@@ -3,7 +3,7 @@
 #include <iomanip>
 #include <cmath>
 
-#define N 5     //Number of rows/cols
+#define N 9     //Number of rows/cols
 const double pi = acos(-1);
 
 using namespace std;
@@ -34,13 +34,11 @@ void printm(double* matrix) {
 
 
 double getv(double* matrix,int i, int j) {
-
     return (4 * matrix[i * N + j] - matrix[(i - 1) * N + j] - matrix[(i + 1) * N + j] - matrix[i * N + j - 1] - matrix[i * N + j + 1]);
 }
 
 double getf(double* matrix, int i, int j) {
-    //return 2 * pi * pi * sin(pi*i) * sin(pi*j);   //Fall2
-    return 0;   //Fall 1
+    return 0;
 }
 
 void makeres(double* matrix, double* res) {
@@ -80,8 +78,6 @@ int main(int argc, char **argv)
     int matrix_size = N*N;
     int partmatrix_size = matrix_size/(world_size-1);
     int rest = matrix_size%(world_size-1);
-    cout << "Teilmatrix_Groeße: " << partmatrix_size << endl;
-    cout << "Teilmatrix_Rest: " << rest << endl;
 
     if(rank == 0){ //main thread
         double matrix[N][N] = { 0 }; //initalize matrix
@@ -91,23 +87,18 @@ int main(int argc, char **argv)
         printm(&matrix[0][0]);
         cout << "\n\n";
 
-        for(int i = 1; i < world_size-1; i++){
-            //cout << "Senden an: " << (partmatrix_size%N*(i-1)) << endl;
-             cout << "i: " << i << endl;
-            cout << "Senden an: " << (partmatrix_size*(i-1))/N << "   " << (partmatrix_size*(i-1))%N << endl;
+        int command = 1;
+
+        for(int i = 1; i < world_size-1; i++){  //distribute values
             MPI_Send(&matrix[(partmatrix_size*(i-1))/N][(partmatrix_size*(i-1))%N], partmatrix_size, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
-            //MPI_Send(&temp[partmatrix_size*(i-1)], partmatrix_size, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
-            //MPI_Send(test, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
         }
-            //cout << "Letztes Senden an: " << matrix[partmatrix_size%N*(world_size-2)][partmatrix_size/N*(world_size-2)] << endl;
-            //MPI_Send(&matrix[partmatrix_size%N*(world_size-2)][partmatrix_size/N*(world_size-2)], partmatrix_size+rest, MPI_DOUBLE, world_size-1, 0, MPI_COMM_WORLD);
+        MPI_Send(&matrix[(partmatrix_size*(world_size-1-1))/N][(partmatrix_size*(world_size-1-1))%N], partmatrix_size+rest, MPI_DOUBLE, world_size-1, 0, MPI_COMM_WORLD);
 
-            cout << "Senden an: " << (partmatrix_size*(world_size-1-1))/N << "  " << (partmatrix_size*(world_size-1-1))%N << endl;
-            MPI_Send(&matrix[(partmatrix_size*(world_size-1-1))/N][(partmatrix_size*(world_size-1-1))%N], partmatrix_size+rest, MPI_DOUBLE, world_size-1, 0, MPI_COMM_WORLD);
+        for(int i = 1; i < world_size; i++){  //send start command
+            MPI_Send(&command, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+        }
 
-            //MPI_Send(&temp[partmatrix_size*(world_size-2)], partmatrix_size+rest, MPI_DOUBLE, world_size-1, 0, MPI_COMM_WORLD);
-        //MPI_Send(test, 1, MPI_INT, world_size-1, 0, MPI_COMM_WORLD);
-    }
+}
 
 //important
  /*   do {
@@ -120,24 +111,28 @@ int main(int argc, char **argv)
     cout << "number of threads: " << world_size << endl;
 */
 
-    else if((0 < rank)&&(rank<world_size-1)){
-        //double matrix[partmatrix_size];
-        double* matrix = (double*) malloc(partmatrix_size);
-        //MPI_Recv(matrix, partmatrix_size, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Recv(matrix, partmatrix_size, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-//        for(int j = 0; j < partmatrix_size; j++) {
-//            cout << rank<< ": " << matrix[j] << "  ";
-//        }
-    }
+    else{
+        int command = 0;
+        else if((0 < rank)&&(rank<world_size-1)){   //receive matrix for standard threads
+            double* matrix = (double*) malloc(partmatrix_size);
+            MPI_Recv(matrix, partmatrix_size, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
 
-    else if(rank == world_size-1){
-        //double matrix[partmatrix_size+rest];
-        double* matrix = (double*) malloc(partmatrix_size+rest);
-        //MPI_Recv(matrix, partmatrix_size, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Recv(matrix, partmatrix_size+rest, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        cout  << "TEST" << endl;
-        for(int j = 0; j < partmatrix_size+rest; j++) {
-            cout  << rank << matrix[j] << "  ";
+        else if(rank == world_size-1){  //receive matrix for last thread
+            double* matrix = (double*) malloc(partmatrix_size+rest);
+            MPI_Recv(matrix, partmatrix_size+rest, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
+
+        MPI_Recv(&command, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);    //wait for command
+
+        if(command == 1){//execute one iteration step
+            if(partmatrix_size >= N){    //the thread calculates at least one complete line
+                if(rank == 1){  //first thread which also includes first line
+
+                }
+            }else if(partmatrix_size < N){
+
+            }
         }
     }
 
