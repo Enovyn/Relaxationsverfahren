@@ -91,21 +91,19 @@ int main(int argc, char **argv)
         printm(&matrix[0][0]);
         cout << "\n\n";
 
-        int var = 14;
-        int* test = &var;
-
         for(int i = 1; i < world_size-1; i++){
             //cout << "Senden an: " << (partmatrix_size%N*(i-1)) << endl;
-            cout << "Senden an: " << partmatrix_size%N*(i-1) << "   " << partmatrix_size/N*(i-1) << endl;
-            MPI_Send(&matrix[partmatrix_size%N*(i-1)][partmatrix_size/N*(i-1)], partmatrix_size, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+             cout << "i: " << i << endl;
+            cout << "Senden an: " << (partmatrix_size*(i-1))/N << "   " << (partmatrix_size*(i-1))%N << endl;
+            MPI_Send(&matrix[(partmatrix_size*(i-1))/N][(partmatrix_size*(i-1))%N], partmatrix_size, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
             //MPI_Send(&temp[partmatrix_size*(i-1)], partmatrix_size, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
             //MPI_Send(test, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
         }
             //cout << "Letztes Senden an: " << matrix[partmatrix_size%N*(world_size-2)][partmatrix_size/N*(world_size-2)] << endl;
             //MPI_Send(&matrix[partmatrix_size%N*(world_size-2)][partmatrix_size/N*(world_size-2)], partmatrix_size+rest, MPI_DOUBLE, world_size-1, 0, MPI_COMM_WORLD);
 
-            cout << "Senden an: " << partmatrix_size%N*(world_size-1-1) << "  " << partmatrix_size/N*(world_size-1-1) << endl;
-            MPI_Send(&matrix[partmatrix_size%N*(world_size-1-1)][partmatrix_size/N*(world_size-1-1)], partmatrix_size+rest, MPI_DOUBLE, world_size-1, 0, MPI_COMM_WORLD);
+            cout << "Senden an: " << (partmatrix_size*(world_size-1-1))/N << "  " << (partmatrix_size*(world_size-1-1))%N << endl;
+            MPI_Send(&matrix[(partmatrix_size*(world_size-1-1))/N][(partmatrix_size*(world_size-1-1))%N], partmatrix_size+rest, MPI_DOUBLE, world_size-1, 0, MPI_COMM_WORLD);
 
             //MPI_Send(&temp[partmatrix_size*(world_size-2)], partmatrix_size+rest, MPI_DOUBLE, world_size-1, 0, MPI_COMM_WORLD);
         //MPI_Send(test, 1, MPI_INT, world_size-1, 0, MPI_COMM_WORLD);
