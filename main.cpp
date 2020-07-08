@@ -4,6 +4,10 @@
 #include <cmath>
 
 #define N 5     //Number of rows/cols
+#define NUMT 4  //Number of Threads, same as in run.bat
+#define PARTMATRIX_SIZE (N*N)/(NUMT-1)
+#define REST (N*N)%(NUMT-1)
+
 const double pi = acos(-1);
 
 using namespace std;
@@ -72,17 +76,11 @@ double getmaxres(double* res) {
 
 int main(int argc, char **argv)
 {
-    int rank=0, size=0, world_size=0;
+    int rank=0, size=0;
 
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
-    int matrix_size = N*N;
-    int partmatrix_size = matrix_size/(world_size-1);
-    int rest = matrix_size%(world_size-1);
-
-    int my_matrix_size = 0; //saves number of values for this specific thread (last one might have more than the others)
 
     if(rank == 0){ //main thread
         double matrix[N][N] = { 0 }; //initalize matrix
@@ -90,18 +88,18 @@ int main(int argc, char **argv)
 
         int command = 1;
 
-        cout << "Teilmatrix_Groeße: " << partmatrix_size << endl;
-        cout << "Teilmatrix_Rest: " << rest << endl;
+        cout << "Teilmatrix_Groeße1: " << PARTMATRIX_SIZE << endl;
+        cout << "Teilmatrix_Rest1: " << REST << endl;
 
         initm(&matrix[0][0]);
         printm(&matrix[0][0]);
         cout << "\n\n";
 
-        for(int i = 1; i < world_size-1; i++){
-            MPI_Send(&matrix[(partmatrix_size*(i-1))/N][(partmatrix_size*(i-1))%N], partmatrix_size, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+        for(int i = 1; i < NUMT-1; i++){
+            MPI_Send(&matrix[(PARTMATRIX_SIZE*(i-1))/N][(PARTMATRIX_SIZE*(i-1))%N], PARTMATRIX_SIZE, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
 
         }
-            MPI_Send(&matrix[(partmatrix_size*(world_size-1-1))/N][(partmatrix_size*(world_size-1-1))%N], partmatrix_size+rest, MPI_DOUBLE, world_size-1, 0, MPI_COMM_WORLD);
+            MPI_Send(&matrix[(PARTMATRIX_SIZE*(NUMT-1-1))/N][(PARTMATRIX_SIZE*(NUMT-1-1))%N], PARTMATRIX_SIZE+REST, MPI_DOUBLE, NUMT-1, 0, MPI_COMM_WORLD);
 
         /*for(int i = 1; i <= world_size-1; i++){
             cout << "i: " << i << endl;
@@ -109,19 +107,21 @@ int main(int argc, char **argv)
         }*/
 
     }else{
-        if(rank<world_size-1){
-            my_matrix_size = partmatrix_size;
-            double* matrix = (double*) malloc(my_matrix_size);
+        int my_matrix_size = 0; //saves number of values for this specific thread (last one might have more than the others)
+        if(rank<NUMT-1){
+            my_matrix_size = PARTMATRIX_SIZE;
+            double* matrix[PARTMATRIX_SIZE];
             MPI_Recv(matrix, my_matrix_size, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
         else{
-            my_matrix_size = partmatrix_size+rest;
-            double* matrix = (double*) malloc(my_matrix_size);
+            my_matrix_size = PARTMATRIX_SIZE+REST;
+            double* matrix[PARTMATRIX_SIZE+REST];
             MPI_Recv(matrix, my_matrix_size, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
+
+        cout << my_matrix_size;
+
     }
-
-
 
     MPI_Finalize();
     return 0;
