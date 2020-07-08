@@ -3,7 +3,7 @@
 #include <iomanip>
 #include <cmath>
 
-#define N 9     //Number of rows/cols
+#define N 5     //Number of rows/cols
 const double pi = acos(-1);
 
 using namespace std;
@@ -34,11 +34,13 @@ void printm(double* matrix) {
 
 
 double getv(double* matrix,int i, int j) {
+
     return (4 * matrix[i * N + j] - matrix[(i - 1) * N + j] - matrix[(i + 1) * N + j] - matrix[i * N + j - 1] - matrix[i * N + j + 1]);
 }
 
 double getf(double* matrix, int i, int j) {
-    return 0;
+    //return 2 * pi * pi * sin(pi*i) * sin(pi*j);   //Fall2
+    return 0;   //Fall 1
 }
 
 void makeres(double* matrix, double* res) {
@@ -75,66 +77,51 @@ int main(int argc, char **argv)
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
     int matrix_size = N*N;
     int partmatrix_size = matrix_size/(world_size-1);
     int rest = matrix_size%(world_size-1);
+
+    int my_matrix_size = 0; //saves number of values for this specific thread (last one might have more than the others)
 
     if(rank == 0){ //main thread
         double matrix[N][N] = { 0 }; //initalize matrix
         double res[N][N] = { 0 };
 
+        int command = 1;
+
+        cout << "Teilmatrix_Groeße: " << partmatrix_size << endl;
+        cout << "Teilmatrix_Rest: " << rest << endl;
+
         initm(&matrix[0][0]);
         printm(&matrix[0][0]);
         cout << "\n\n";
 
-        int command = 1;
-
-        for(int i = 1; i < world_size-1; i++){  //distribute values
+        for(int i = 1; i < world_size-1; i++){
             MPI_Send(&matrix[(partmatrix_size*(i-1))/N][(partmatrix_size*(i-1))%N], partmatrix_size, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
-        }
-        MPI_Send(&matrix[(partmatrix_size*(world_size-1-1))/N][(partmatrix_size*(world_size-1-1))%N], partmatrix_size+rest, MPI_DOUBLE, world_size-1, 0, MPI_COMM_WORLD);
 
-        for(int i = 1; i < world_size; i++){  //send start command
+        }
+            MPI_Send(&matrix[(partmatrix_size*(world_size-1-1))/N][(partmatrix_size*(world_size-1-1))%N], partmatrix_size+rest, MPI_DOUBLE, world_size-1, 0, MPI_COMM_WORLD);
+
+        /*for(int i = 1; i <= world_size-1; i++){
+            cout << "i: " << i << endl;
             MPI_Send(&command, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+        }*/
+
+    }else{
+        if(rank<world_size-1){
+            my_matrix_size = partmatrix_size;
+            double* matrix = (double*) malloc(my_matrix_size);
+            MPI_Recv(matrix, my_matrix_size, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
-
-}
-
-//important
- /*   do {
-        makeres(&matrix[0][0], &res[0][0]);     //Bestimme Residuum
-        makenew(&matrix[0][0], &res[0][0]);     //Bestimme neue ErgebnisMatrix
-        cout << "\n\n";
-        printm(&matrix[0][0]);
-    } while (getmaxres(&res[0][0]) > 0.0001);   //max Residuum prüfen
-    printm(&matrix[0][0]);
-    cout << "number of threads: " << world_size << endl;
-*/
-
-    else{
-        int command = 0;
-        else if((0 < rank)&&(rank<world_size-1)){   //receive matrix for standard threads
-            double* matrix = (double*) malloc(partmatrix_size);
-            MPI_Recv(matrix, partmatrix_size, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        }
-
-        else if(rank == world_size-1){  //receive matrix for last thread
-            double* matrix = (double*) malloc(partmatrix_size+rest);
-            MPI_Recv(matrix, partmatrix_size+rest, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        }
-
-        MPI_Recv(&command, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);    //wait for command
-
-        if(command == 1){//execute one iteration step
-            if(partmatrix_size >= N){    //the thread calculates at least one complete line
-                if(rank == 1){  //first thread which also includes first line
-
-                }
-            }else if(partmatrix_size < N){
-
-            }
+        else{
+            my_matrix_size = partmatrix_size+rest;
+            double* matrix = (double*) malloc(my_matrix_size);
+            MPI_Recv(matrix, my_matrix_size, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
     }
+
+
 
     MPI_Finalize();
     return 0;
