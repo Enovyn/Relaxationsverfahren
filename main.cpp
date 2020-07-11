@@ -3,7 +3,7 @@
 #include <iomanip>
 #include <cmath>
 
-#define N 5     //Number of rows/cols
+#define N 8     //Number of rows/cols
 #define NUMT 4  //Number of Threads, same as in run.bat
 #define PARTMATRIX_SIZE (N*N)/(NUMT-1)
 #define REST (N*N)%(NUMT-1)
@@ -137,34 +137,82 @@ int main(int argc, char **argv)
                 int current_row = (PARTMATRIX_SIZE*(rank-1)+i)/N;   //row and column where the value is saved we are currently working on
                 int current_column = (PARTMATRIX_SIZE*(rank-1)+i)%N;
 
-                //send this value to field in next line (i+1)
+                int prev_rank = 0;
+                int next_rank = 0;
+
+
                 if(current_row < N-1){ //if we are not in the last line, we have to send our value to the field in the next line
+                        //send this value to field in next line (i+1)
                         int t = my_matrix_size - i;     //how many fields from this thread are left
-                        if(t > N){} //do nothing because the rank that needs this value is this rank
+                        if(t > N); //do nothing because the rank that needs this value is this rank
                         else{
                             t = N - t + 1; //how many fields are between the end of this thread and the desired field
                             int r= PARTMATRIX_SIZE;
-                            int send_rank = rank + ceil((double)t/(double)r);
-                            if(send_rank > NUMT-1){send_rank = NUMT-1;} //if send_rank is bigger than number of threads then the last thread has the remaining values assigned to
-                            MPI_Send(&matrix[current_row][current_column], 1, MPI_DOUBLE, send_rank, 0, MPI_COMM_WORLD);
+                            next_rank = rank + ceil((double)t/(double)r);   //next rank which contains the field (i+1)
+                            if(next_rank > NUMT-1){next_rank = NUMT-1;} //if next_rank is bigger than number of threads then the last thread has the remaining values assigned to
+                        //send this value to rank with field in next line (i+1)
+                            MPI_Send(&matrix[current_row][current_column], 1, MPI_DOUBLE, next_rank, 0, MPI_COMM_WORLD);
                         }
                 }
+
                 if(current_row > 0){
                     if(i >= N){} //do nothing because the rank that has this value is this rank
                         else{
                             int t = N - i; //how many fields are between the end of this thread and the desired field
                             int r= PARTMATRIX_SIZE;
-                            int recv_rank = rank - ceil((double)t/(double)r);
-                            MPI_Recv(&matrix[current_row-1][current_column], 1, MPI_DOUBLE, recv_rank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                            prev_rank = rank - ceil((double)t/(double)r);   //previous rank which contains the field (i-1)
+
+                        //send this value to rank with field in previous line (i-1)
+                            MPI_Send(&matrix[current_row][current_column], 1, MPI_DOUBLE, prev_rank, 0, MPI_COMM_WORLD);
                         }
                 }
+
+
         }
 
 
 
+
+
+        /////////////receive
+            for (int i = 0; i < my_matrix_size; i++) {
+                int current_row = (PARTMATRIX_SIZE*(rank-1)+i)/N;   //row and column where the value is saved we are currently working on
+                int current_column = (PARTMATRIX_SIZE*(rank-1)+i)%N;
+
+                int prev_rank = 0;
+                int next_rank = 0;
+
+                if(current_row < N-1){ //if we are not in the last line, we have to send our value to the field in the next line
+                        //send this value to field in next line (i+1)
+                        int t = my_matrix_size - i;     //how many fields from this thread are left
+                        if(t > N); //do nothing because the rank that needs this value is this rank
+                        else{
+                            t = N - t + 1; //how many fields are between the end of this thread and the desired field
+                            int r= PARTMATRIX_SIZE;
+                            next_rank = rank + ceil((double)t/(double)r);   //next rank which contains the field (i+1)
+                            if(next_rank > NUMT-1){next_rank = NUMT-1;} //if next_rank is bigger than number of threads then the last thread has the remaining values assigned to
+                            MPI_Recv(&matrix[current_row+1][current_column], 1, MPI_DOUBLE, next_rank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                        }
+                }
+
+                if(current_row > 0){
+                    if(i >= N){} //do nothing because the rank that has this value is this rank
+                        else{
+                            int t = N - i; //how many fields are between the end of this thread and the desired field
+                            int r= PARTMATRIX_SIZE;
+                            prev_rank = rank - ceil((double)t/(double)r);   //previous rank which contains the field (i-1)
+
+                        //receive value from field in previous line (i-1)
+                            MPI_Recv(&matrix[current_row-1][current_column], 1, MPI_DOUBLE, prev_rank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                        }
+                }
+        }
+        ////////////
+
+
         MPI_Recv(&command, 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         if(command){    //execute one iteration step
-            //cout << rank << endl;
+            cout << rank << endl;
         }
 
     }
